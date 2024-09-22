@@ -105,7 +105,7 @@ def scraper(url, driver):
 
 def handler(event, context):
     s3 = boto3.client("s3")
-    bucket = "cliu789test"  # TODO: Modify it to your own s3 bucket
+    bucket = "tutorialbucket12"  # TODO: Modify it to your own s3 bucket
 
     options = webdriver.ChromeOptions()
     options.add_argument("--headless")
@@ -120,7 +120,7 @@ def handler(event, context):
 
     url = "https://webapps.jacksonemc.com/nisc/maps/MemberOutageMap/"
 
-    data = scraper1(url, driver)  # TODO: Modify it to your own scraper()
+    data = scraper(url, driver)  # TODO: Modify it to your own scraper()
 
     driver.close()
     driver.quit()
@@ -128,12 +128,12 @@ def handler(event, context):
     for key, df in data.items():
         current_time = timenow()
         filename = (
-            f"Jackson_{key}_{current_time}.csv"  # TODO: Modify it to your filename
+            f"JacksonEMC_{key}_{current_time}.csv"  # TODO: Modify it to your filename
         )
         csv_buffer = pd.DataFrame(df).to_csv(index=False)
         s3.put_object(Bucket=bucket, Key=filename, Body=csv_buffer)
 
     return {
         "statusCode": 200,
-        "body": "Successfully Scrap the Jakson EMC!",
+        "body": "Successfully Scraped the Jakson EMC Data!",
     }  # TODO: Modify it to your own message
