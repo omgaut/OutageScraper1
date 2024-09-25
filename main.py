@@ -100,8 +100,55 @@ def scraper1(url, driver):
 # Output: A dictionary of dataframe, Ex: {"per_county": <pandas dataframe>, "per_zipcode": <pandas dataframe>, ...}
 # Scraper 1 is an example
 def scraper(url, driver):
-    pass
+    def fetch_outage_data():
+        print(f"Fetching power outage data from {url}")
+        driver.get(url)
+        time.sleep(10)  # Allow time for the page to load
 
+        # Find elements by XPath or any other selector suitable for the map data.
+        # Here, I'm assuming the button exists for customer summary
+        try:
+            button = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable((By.XPATH, '//*[@id="OMS.Customers Summary"]'))
+            )
+            button.click()
+            time.sleep(5)
+        except Exception as e:
+            print(f"Failed to click summary button: {e}")
+            return {}
+
+        # Fetch and return the page source (adjust if the page is more dynamic or complex)
+        return driver.page_source
+
+    def parse_outage_data(page_source):
+        soup = BeautifulSoup(page_source, 'html.parser')
+        
+        # Find relevant table, this might need adjustments depending on the page structure
+        outage_table = soup.find('table')
+        data_rows = outage_table.find_all('tr')  # Assumes table has <tr> for rows
+
+        # Parse rows into a list of dictionaries
+        data = []
+        for row in data_rows[1:]:  # Skip header
+            columns = row.find_all('td')
+            entry = {
+                "region": columns[0].text.strip(),
+                "outages": int(columns[1].text.strip()),
+                "customers_affected": int(columns[2].text.strip()),
+                "last_updated": columns[3].text.strip(),
+            }
+            data.append(entry)
+        return data
+
+    # Fetch data and parse it
+    page_source = fetch_outage_data()
+    if not page_source:
+        return {}
+    
+    parsed_data = parse_outage_data(page_source)
+    return parsed_data
+
+    
 
 def handler(event, context):
     s3 = boto3.client("s3")
