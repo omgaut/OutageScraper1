@@ -100,53 +100,64 @@ def scraper1(url, driver):
 # Output: A dictionary of dataframe, Ex: {"per_county": <pandas dataframe>, "per_zipcode": <pandas dataframe>, ...}
 # Scraper 1 is an example
 def scraper(url, driver):
-    def fetch_outage_data():
-        print(f"Fetching power outage data from {url}")
-        driver.get(url)
-        time.sleep(10)  # Allow time for the page to load
-
-        # Find elements by XPath or any other selector suitable for the map data.
-        # Here, I'm assuming the button exists for customer summary
-        try:
-            button = WebDriverWait(driver, 10).until(
-                EC.element_to_be_clickable((By.XPATH, '//*[@id="OMS.Customers Summary"]'))
-            )
-            button.click()
-            time.sleep(5)
-        except Exception as e:
-            print(f"Failed to click summary button: {e}")
-            return {}
-
-        # Fetch and return the page source (adjust if the page is more dynamic or complex)
-        return driver.page_source
-
-    def parse_outage_data(page_source):
-        soup = BeautifulSoup(page_source, 'html.parser')
+    def fetch():
+        print(f"Fetching outage data from {url}")
         
-        # Find relevant table, this might need adjustments depending on the page structure
-        outage_table = soup.find('table')
-        data_rows = outage_table.find_all('tr')  # Assumes table has <tr> for rows
+        # Open the URL in the browser
+        driver.get(url)
+        time.sleep(10)  
 
-        # Parse rows into a list of dictionaries
-        data = []
-        for row in data_rows[1:]:  # Skip header
-            columns = row.find_all('td')
-            entry = {
-                "region": columns[0].text.strip(),
-                "outages": int(columns[1].text.strip()),
-                "customers_affected": int(columns[2].text.strip()),
-                "last_updated": columns[3].text.strip(),
-            }
-            data.append(entry)
+        page_source = {}
+        select_elements = driver.find_elements(By.CLASS_NAME, "gwt-ListBox")
+        menu = Select(select_elements[0])
+        for idx, option in enumerate(menu.options):
+            level = option.text
+            menu.select_by_index(idx)
+            time.sleep(3)
+            page_source.update({f"per_{level}": driver.page_source})
+        return page_source
+        
+    def parse():
+        data = fetch()
+        for level, pg in data.items():
+            df = _parse(pg)
+            data.update({level: df})
         return data
 
-    # Fetch data and parse it
-    page_source = fetch_outage_data()
-    if not page_source:
-        return {}
-    
-    parsed_data = parse_outage_data(page_source)
-    return parsed_data
+    def _parse(page_source):
+        soup = BeautifulSoup(page_source, "html.parser")
+        tables = soup.find_all("table")
+        # separate rows
+        rows = tables[1].find_all("tr")
+        header_row = rows[0]
+        data_rows = rows[1:]
+
+        # Extract the table header cells
+        header_cells = header_row.find_all("th")
+        header = [cell.get_text().strip() for cell in header_cells]
+        cols = [h for h in header if h != ""]
+
+        # Extract the table data cells
+        data = []
+        for row in data_rows:
+            cells = row.find_all("td")
+            data.append([cell.get_text().strip() for cell in cells])
+
+        # Print the table data as a list of dictionaries
+        table = [dict(zip(header, row)) for row in data]
+        df = pd.DataFrame(table)
+        if len(df.columns) > 1:
+            df = df[cols]
+            df = df.dropna(axis=0)
+            df["timestamp"] = timenow()
+            # df = df[df["# Out"] != "0"]
+        else:
+            df = pd.DataFrame()
+        # print("Storing info.csv ...")
+        # df.to_csv("info.csv")
+        return df
+
+    return parse()
 
     
 
